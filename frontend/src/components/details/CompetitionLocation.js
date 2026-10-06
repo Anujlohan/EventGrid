@@ -37,16 +37,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F5F9',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   iconText: {
-    fontSize: 20,
+    fontSize: 22,
   },
   details: {
     flex: 1,
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
   venueText: {
     fontSize: TYPOGRAPHY.size.sm,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
   },
   cityText: {
     fontSize: TYPOGRAPHY.size.xs,

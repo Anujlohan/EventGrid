@@ -6,17 +6,19 @@ import { TYPOGRAPHY } from '../../constants/typography';
 
 export const RegistrationInformation = ({ entryFee = 'Free', prizePool }) => {
   return (
-    <InfoCard title="Registration Details">
+    <InfoCard title="Registration & Rewards">
       <View style={styles.row}>
-        <View style={styles.item}>
+        <View style={styles.itemCard}>
           <Text style={styles.label}>Entry Fee</Text>
           <Text style={styles.value}>{entryFee}</Text>
+          <Text style={styles.subtext}>Per Participant / Team</Text>
         </View>
 
         {prizePool ? (
-          <View style={[styles.item, styles.itemRight]}>
-            <Text style={styles.label}>Prize Pool</Text>
+          <View style={[styles.itemCard, styles.prizeCard]}>
+            <Text style={styles.prizeLabel}>🏆 Prize Pool</Text>
             <Text style={[styles.value, styles.prizeValue]}>{prizePool}</Text>
+            <Text style={styles.prizeSubtext}>Total Rewards</Text>
           </View>
         ) : null}
       </View>
@@ -27,13 +29,19 @@ export const RegistrationInformation = ({ entryFee = 'Free', prizePool }) => {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
-  item: {
+  itemCard: {
     flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  itemRight: {
-    alignItems: 'flex-end',
+  prizeCard: {
+    backgroundColor: 'rgba(163, 230, 53, 0.06)',
+    borderColor: 'rgba(163, 230, 53, 0.25)',
   },
   label: {
     fontSize: TYPOGRAPHY.size.xs,
@@ -43,12 +51,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
+  prizeLabel: {
+    fontSize: TYPOGRAPHY.size.xs,
+    color: COLORS.lime,
+    fontWeight: TYPOGRAPHY.weight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
   value: {
-    fontSize: TYPOGRAPHY.size.base,
+    fontSize: TYPOGRAPHY.size.lg,
     fontWeight: TYPOGRAPHY.weight.bold,
     color: COLORS.textPrimary,
   },
   prizeValue: {
-    color: '#059669',
+    color: COLORS.lime,
+  },
+  subtext: {
+    fontSize: TYPOGRAPHY.size.xs,
+    color: COLORS.textMuted,
+    marginTop: 3,
+  },
+  prizeSubtext: {
+    fontSize: TYPOGRAPHY.size.xs,
+    color: 'rgba(163, 230, 53, 0.7)',
+    marginTop: 3,
   },
 });

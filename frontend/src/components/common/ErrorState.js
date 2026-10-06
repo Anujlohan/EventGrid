@@ -18,7 +18,7 @@ export const ErrorState = ({
         <Text style={styles.message}>{message}</Text>
         {onRetry ? (
           <ActionButton
-            title="Retry"
+            title="Retry Connection"
             onPress={onRetry}
             style={styles.button}
           />
@@ -38,19 +38,26 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.surface,
-    padding: 28,
-    borderRadius: 16,
+    padding: 32,
+    borderRadius: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    maxWidth: 380,
+    borderColor: 'rgba(244, 63, 94, 0.25)',
+    maxWidth: 420,
     width: '100%',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 4,
   },
   iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FEF2F2',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -59,7 +66,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
   },
   title: {
-    fontSize: TYPOGRAPHY.size.lg,
+    fontSize: TYPOGRAPHY.size.xl,
     fontWeight: TYPOGRAPHY.weight.bold,
     color: COLORS.textPrimary,
     marginBottom: 8,
@@ -68,7 +75,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.size.base,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
     lineHeight: TYPOGRAPHY.lineHeight.normal,
   },
   button: {

@@ -6,14 +6,29 @@ export const competitionService = {
    */
   getCompetitions: async (params = {}) => {
     const query = new URLSearchParams();
-    if (params.category) query.append('category', params.category);
-    if (params.status) query.append('status', params.status);
+    if (params.category && params.category !== 'All') query.append('category', params.category);
+    if (params.sportType && params.sportType !== 'All') query.append('sportType', params.sportType);
+    if (params.subcategory && params.subcategory !== 'All') query.append('subcategory', params.subcategory);
+    if (params.status && params.status !== 'All') query.append('status', params.status);
+    if (params.search && typeof params.search === 'string' && params.search.trim()) {
+      query.append('search', params.search.trim());
+    }
+    if (params.sortBy) query.append('sortBy', params.sortBy);
+    if (params.order) query.append('order', params.order);
+    if (params.sort) query.append('sort', params.sort);
     if (params.page) query.append('page', params.page);
     if (params.limit) query.append('limit', params.limit);
 
     const queryString = query.toString();
     const endpoint = `/competitions${queryString ? `?${queryString}` : ''}`;
     return await api.get(endpoint);
+  },
+
+  /**
+   * Fetch category taxonomy with sports subcategories
+   */
+  getCategories: async () => {
+    return await api.get('/competitions/categories');
   },
 
   /**
@@ -51,5 +66,19 @@ export const competitionService = {
    */
   createCompetition: async (competitionData) => {
     return await api.post('/competitions', competitionData);
+  },
+
+  /**
+   * Fetch participant roster for a competition (Creator or Admin only)
+   */
+  getCompetitionParticipants: async (competitionId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', params.page);
+    if (params.limit) query.append('limit', params.limit);
+    if (params.status && params.status !== 'All') query.append('status', params.status);
+
+    const queryString = query.toString();
+    const endpoint = `/competitions/${competitionId}/participants${queryString ? `?${queryString}` : ''}`;
+    return await api.get(endpoint);
   },
 };

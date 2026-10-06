@@ -29,6 +29,24 @@ const register = async (req, res, next) => {
   }
 };
 
+const joinWaitlist = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+    const { participantDetails } = req.body;
+
+    const result = await registrationService.joinWaitlistUser(id, userId, participantDetails);
+    return successResponse(
+      res,
+      201,
+      result,
+      'Successfully joined the waitlist for this competition.'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 const cancelRegistration = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -57,6 +75,7 @@ const getUserRegistrations = async (req, res, next) => {
 module.exports = {
   getRegistrationStatus,
   register,
+  joinWaitlist,
   cancelRegistration,
   getUserRegistrations,
 };

@@ -15,18 +15,24 @@ export const InfoCard = ({ title, children, style }) => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: 8,
-    padding: 16,
-    marginVertical: 6,
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
   title: {
     fontSize: TYPOGRAPHY.size.base,
     fontWeight: TYPOGRAPHY.weight.bold,
     color: COLORS.textPrimary,
     fontFamily: TYPOGRAPHY.fontFamily,
-    marginBottom: 12,
+    marginBottom: 14,
+    letterSpacing: -0.2,
   },
   content: {
     width: '100%',

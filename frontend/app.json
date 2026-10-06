@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Competition Hub",
-    "slug": "competition-hub",
+    "name": "EventGrid",
+    "slug": "eventgrid",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,7 +23,9 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ]
   }
 }

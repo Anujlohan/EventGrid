@@ -1,15 +1,24 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const config = require('./config/env');
 const { connectDB } = require('./config/db');
 const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
+const { apiLimiter } = require('./middleware/rateLimiter');
 const routes = require('./routes');
 const AppError = require('./utils/appError');
 
 const app = express();
 
-// Production-ready CORS configuration
+// 1. Security Headers Middleware (Helmet)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// 2. Production-ready CORS Configuration
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, Postman)
@@ -30,21 +39,26 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// 3. General API Rate Limiting Middleware
+app.use('/api', apiLimiter);
+
+// 4. Request Body Parsing
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Structured Request Logging
+// 5. Structured Request Logging
 app.use(requestLogger());
 
-// API Routes Mounting
+// 6. Mount Resource API Routes
 app.use('/api', routes);
 
-// Catch Unhandled 404 Routes
+// 7. Catch Unhandled 404 Routes
 app.all('*', (req, res, next) => {
   next(new AppError(`Cannot find endpoint ${req.method} ${req.originalUrl} on this server.`, 404));
 });
 
-// Centralized Central Error Handling Middleware
+// 8. Centralized Error Handling Middleware
 app.use(errorHandler);
 
 // Start server if executed directly
@@ -54,12 +68,14 @@ if (require.main === module) {
       if (config.MONGODB_URI) {
         await connectDB();
       } else {
-        console.log('[Server Notice] No MONGODB_URI provided. Starting without database connection (run dev:standalone for embedded DB).');
+        console.log(
+          '[Server Notice] No MONGODB_URI provided. Starting without database connection (run dev:standalone for embedded DB).'
+        );
       }
 
       const server = app.listen(config.PORT, () => {
         console.log(`\n======================================================`);
-        console.log(`🚀 Competition Production API Server`);
+        console.log(`🚀 EventGrid Production API Server`);
         console.log(`📡 URL: http://localhost:${config.PORT}`);
         console.log(`🩺 Health: http://localhost:${config.PORT}/api/health`);
         console.log(`🏆 API Base: http://localhost:${config.PORT}/api/competitions`);

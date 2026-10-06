@@ -17,6 +17,7 @@ import { TYPOGRAPHY } from '../constants/typography';
 export const LoginScreen = ({ onLoginSuccess, onNavigateToSignup }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -59,9 +60,12 @@ export const LoginScreen = ({ onLoginSuccess, onNavigateToSignup }) => {
         <View style={styles.card}>
           {/* Header Branding */}
           <View style={styles.header}>
-            <Text style={styles.brandTitle}>COMPETITIONS</Text>
-            <Text style={styles.brandSubtitle}>Platform</Text>
-            <Text style={styles.welcomeText}>Welcome back! Sign in to continue</Text>
+            <View style={styles.brandBadge}>
+              <Text style={styles.brandBadgeIcon}>⚡</Text>
+            </View>
+            <Text style={styles.brandTitle}>EVENTGRID</Text>
+            <Text style={styles.brandSubtitle}>Competitions & Hackathons</Text>
+            <Text style={styles.welcomeText}>Welcome back! Sign in to access your dashboard</Text>
           </View>
 
           {/* Error Banner */}
@@ -78,7 +82,7 @@ export const LoginScreen = ({ onLoginSuccess, onNavigateToSignup }) => {
             <TextInput
               style={styles.input}
               placeholder="e.g. aditya@example.com"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor="#64748B"
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -93,17 +97,25 @@ export const LoginScreen = ({ onLoginSuccess, onNavigateToSignup }) => {
 
           {/* Password Field */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordLabelRow}>
+              <Text style={styles.label}>Password</Text>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.showPasswordText}>{showPassword ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={styles.input}
               placeholder="Enter your password"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor="#64748B"
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
                 setErrorMessage('');
               }}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
               editable={!loading}
             />
@@ -140,36 +152,51 @@ export const LoginScreen = ({ onLoginSuccess, onNavigateToSignup }) => {
 const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#090D16',
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    paddingVertical: 40,
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 24,
+    padding: 32,
     width: '100%',
     maxWidth: 440,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
     elevation: 8,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+  },
+  brandBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  brandBadgeIcon: {
+    fontSize: 22,
   },
   brandTitle: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#0F172A',
+    color: COLORS.textPrimary,
     letterSpacing: 2,
   },
   brandSubtitle: {
@@ -178,21 +205,22 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    marginTop: 2,
+    marginTop: 3,
   },
   welcomeText: {
     fontSize: TYPOGRAPHY.size.sm,
     color: COLORS.textSecondary,
     marginTop: 10,
     textAlign: 'center',
+    lineHeight: 20,
   },
   errorBox: {
     backgroundColor: COLORS.dangerBg,
     borderColor: COLORS.dangerBorder,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 18,
+    marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -207,7 +235,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fieldGroup: {
-    marginBottom: 16,
+    marginBottom: 18,
+  },
+  passwordLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  showPasswordText: {
+    fontSize: TYPOGRAPHY.size.xs,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weight.semibold,
   },
   label: {
     fontSize: TYPOGRAPHY.size.xs,
@@ -218,14 +257,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: '#0B1120',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
     fontSize: TYPOGRAPHY.size.base,
-    color: COLORS.textPrimary,
+    color: '#F8FAFC',
   },
   submitButton: {
     backgroundColor: COLORS.primary,
@@ -233,7 +272,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 10,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -242,12 +286,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: TYPOGRAPHY.size.base,
     fontWeight: TYPOGRAPHY.weight.bold,
+    letterSpacing: 0.2,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 22,
+    marginTop: 24,
   },
   footerText: {
     fontSize: TYPOGRAPHY.size.sm,

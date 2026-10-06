@@ -26,9 +26,24 @@ router.post(
   registrationController.register
 );
 
+// POST /api/competitions/:id/waitlist - Atomically join waitlist via ACID Transaction
+router.post(
+  '/:id/waitlist',
+  validateObjectId('id'),
+  validateRegisterPayload,
+  registrationController.joinWaitlist
+);
+
 // DELETE /api/competitions/:id/register - Cancel registration via ACID Transaction
 router.delete(
   '/:id/register',
+  validateObjectId('id'),
+  registrationController.cancelRegistration
+);
+
+// DELETE /api/competitions/:id/waitlist - Cancel waitlist entry via ACID Transaction
+router.delete(
+  '/:id/waitlist',
   validateObjectId('id'),
   registrationController.cancelRegistration
 );

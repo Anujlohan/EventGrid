@@ -181,6 +181,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 7),
         totalSpots: 10,
         registeredCount: 0,
+        createdBy: sampleUser._id,
       });
 
       const res = await request(app).get('/api/competitions');
@@ -201,6 +202,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 5,
         registeredCount: 1,
+        createdBy: sampleUser._id,
       });
 
       const res = await request(app)
@@ -228,7 +230,7 @@ describe('Production Authentication & Competition Test Suite', () => {
       expect(res.body.success).toBe(false);
     });
 
-    test('5. POST /api/competitions requires authentication and creates genuine event', async () => {
+    test('5. POST /api/competitions requires authentication and Organizer/Admin role', async () => {
       const newCompData = {
         title: 'Full-Stack Hackathon 2026',
         description: 'Engineering competition with real backend and mobile clients.',
@@ -248,19 +250,42 @@ describe('Production Authentication & Competition Test Suite', () => {
         ],
       };
 
-      // Unauthenticated fails
+      // Unauthenticated fails (401)
       const unauthRes = await request(app).post('/api/competitions').send(newCompData);
       expect(unauthRes.status).toBe(401);
 
-      // Authenticated succeeds
-      const authRes = await request(app)
+      // Authenticated as Participant fails with 403 Forbidden
+      const participantRes = await request(app)
         .post('/api/competitions')
         .set('Authorization', `Bearer ${sampleToken}`)
+        .send(newCompData);
+      expect(participantRes.status).toBe(403);
+      expect(participantRes.body.message).toContain('Insufficient permissions');
+
+      // Create an Organizer user & token
+      const organizerUser = await User.create({
+        name: 'Organizer Priya',
+        email: `organizer_${Date.now()}@example.com`,
+        phoneNumber: '+91 9876543299',
+        password: 'securePassword123',
+        role: 'Organizer',
+      });
+      const organizerToken = jwt.sign(
+        { userId: organizerUser._id.toString(), email: organizerUser.email, role: organizerUser.role },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      // Authenticated as Organizer succeeds (201)
+      const authRes = await request(app)
+        .post('/api/competitions')
+        .set('Authorization', `Bearer ${organizerToken}`)
         .send(newCompData);
 
       expect(authRes.status).toBe(201);
       expect(authRes.body.data.title).toBe('Full-Stack Hackathon 2026');
       expect(authRes.body.data.customRegistrationFields.length).toBe(1);
+      expect(authRes.body.data.createdBy.toString()).toBe(organizerUser._id.toString());
     });
   });
 
@@ -278,6 +303,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 5,
         registeredCount: 0,
+        createdBy: sampleUser._id,
       });
 
       const res = await request(app)
@@ -311,6 +337,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 5,
         registeredCount: 0,
+        createdBy: sampleUser._id,
       });
 
       // First registration succeeds
@@ -339,6 +366,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 1,
         registeredCount: 1, // Already full
+        createdBy: sampleUser._id,
       });
 
       const res = await request(app)
@@ -360,6 +388,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 5,
         registeredCount: 0,
+        createdBy: sampleUser._id,
         customRegistrationFields: [
           { fieldName: 'university', label: 'University Name', required: true, type: 'text' },
         ],
@@ -407,6 +436,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 5),
         totalSpots: 5,
         registeredCount: 0,
+        createdBy: sampleUser._id,
       });
 
       // Register first
@@ -439,6 +469,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 2),
         totalSpots: 5,
         registeredCount: 1,
+        createdBy: sampleUser._id,
       });
 
       await Registration.create({
@@ -465,6 +496,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 10,
         registeredCount: 1,
+        createdBy: sampleUser._id,
       });
 
       const comp2 = await Competition.create({
@@ -476,6 +508,7 @@ describe('Production Authentication & Competition Test Suite', () => {
         endDate: addDays(now, 6),
         totalSpots: 10,
         registeredCount: 1,
+        createdBy: sampleUser2._id,
       });
 
       // Register user 1 for comp 1

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import {
   View,
+  Text,
+  TouchableOpacity,
   ScrollView,
   RefreshControl,
   StyleSheet,
@@ -28,17 +30,51 @@ import { COLORS } from '../constants/colors';
 import { ParticipantRegistrationModal } from '../components/modals/ParticipantRegistrationModal';
 import { Alert } from 'react-native';
 
+import { storageService } from '../services/storageService';
+
 export const CompetitionDetailsScreen = ({
   competitionId,
   activeUser,
   onBack,
   onRegistrationUpdated,
+  onNavigateToLogin,
+  onOpenOrganizerPortal,
 }) => {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
   const [registrationModalVisible, setRegistrationModalVisible] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   const showToast = (message, type = 'info') => {
     setToast({ visible: true, message, type });
+  };
+
+  // Check bookmark status on mount
+  useEffect(() => {
+    if (competitionId) {
+      storageService.isBookmarked(competitionId).then(setIsBookmarked);
+    }
+  }, [competitionId]);
+
+  const handleToggleBookmark = async () => {
+    const isNowSaved = await storageService.toggleBookmark(competitionId);
+    setIsBookmarked(isNowSaved);
+    showToast(
+      isNowSaved ? '★ Competition saved to bookmarks!' : '☆ Removed from bookmarks.',
+      'info'
+    );
+  };
+
+  const handleShare = () => {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      const url = typeof window !== 'undefined' ? window.location.href : `https://eventgrid.com/competitions/${competitionId}`;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Link copied to clipboard!', 'success');
+      }).catch(() => {
+        showToast('Share link ready to copy.', 'info');
+      });
+    } else {
+      showToast('Event link copied to clipboard!', 'success');
+    }
   };
 
   const handleRegistrationSuccess = (updatedComp, userReg, successMsg) => {
@@ -46,6 +82,7 @@ export const CompetitionDetailsScreen = ({
       ...updatedComp,
       userRegistration: userReg,
     });
+    setRegistrationModalVisible(false);
     showToast(successMsg, 'success');
     if (onRegistrationUpdated) {
       onRegistrationUpdated();
@@ -65,7 +102,10 @@ export const CompetitionDetailsScreen = ({
 
   const handleRegisterPress = () => {
     if (!activeUser) {
-      showToast('Please sign in to register for competitions.', 'error');
+      showToast('Please sign in to register for this competition.', 'info');
+      if (onNavigateToLogin) {
+        onNavigateToLogin();
+      }
       return;
     }
     setRegistrationModalVisible(true);
@@ -74,6 +114,7 @@ export const CompetitionDetailsScreen = ({
   const handleModalSubmitRegistration = async (participantDetails) => {
     try {
       await register(competitionId, participantDetails);
+      setRegistrationModalVisible(false);
     } catch (err) {
       // Error handled by modal / toast
       throw err;
@@ -143,7 +184,7 @@ export const CompetitionDetailsScreen = ({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.surface} />
       
       <ToastMessage
         visible={toast.visible}
@@ -155,7 +196,9 @@ export const CompetitionDetailsScreen = ({
       <CompetitionHeader
         title="Competition Details"
         onBack={onBack}
-        onShare={() => showToast('Share link copied to clipboard!', 'info')}
+        onShare={handleShare}
+        isBookmarked={isBookmarked}
+        onToggleBookmark={handleToggleBookmark}
       />
 
       <View style={styles.container}>
@@ -178,8 +221,30 @@ export const CompetitionDetailsScreen = ({
             title={competition.title}
             organizer={competition.organizer}
             category={competition.category}
+            subcategory={competition.subcategory}
+            sportType={competition.sportType}
             lifecycleStatus={competition.lifecycleStatus}
           />
+
+          {/* Organizer Access Banner for Creator & Admin */}
+          {activeUser &&
+          (activeUser.role === 'Admin' ||
+            (competition.createdBy &&
+              (competition.createdBy === activeUser._id ||
+                competition.createdBy._id === activeUser._id ||
+                competition.createdBy === activeUser.userId ||
+                competition.createdBy === activeUser.id))) &&
+          onOpenOrganizerPortal ? (
+            <TouchableOpacity
+              style={styles.organizerPortalBtn}
+              onPress={() => onOpenOrganizerPortal(competitionId)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.organizerPortalBtnText}>
+                ⚙️ Organizer Portal • View Participant Roster & Export CSV →
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.contentBody}>
             <CompetitionAvailability
@@ -236,20 +301,39 @@ export const CompetitionDetailsScreen = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#090D16',
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#090D16',
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingBottom: 32,
   },
   contentBody: {
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 12,
+  },
+  organizerPortalBtn: {
+    backgroundColor: '#121A2D',
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+  },
+  organizerPortalBtnText: {
+    color: '#A78BFA',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

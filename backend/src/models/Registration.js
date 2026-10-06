@@ -47,6 +47,14 @@ const registrationSchema = new mongoose.Schema(
       enum: Object.values(REGISTRATION_STATUS),
       default: REGISTRATION_STATUS.CONFIRMED,
     },
+    waitlistPosition: {
+      type: Number,
+      default: null,
+    },
+    promotedAt: {
+      type: Date,
+      default: null,
+    },
     cancelledAt: {
       type: Date,
       default: null,

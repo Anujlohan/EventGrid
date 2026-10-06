@@ -30,7 +30,11 @@ const deriveCompetitionLifecycle = (competition, currentTime = new Date()) => {
 
   let lifecycleStatus;
 
-  if (now >= end) {
+  if (competition.isCancelled || competition.status === LIFECYCLE_STATUS.CANCELLED) {
+    lifecycleStatus = LIFECYCLE_STATUS.CANCELLED;
+  } else if (competition.isArchived || competition.status === LIFECYCLE_STATUS.ARCHIVED) {
+    lifecycleStatus = LIFECYCLE_STATUS.ARCHIVED;
+  } else if (now >= end) {
     lifecycleStatus = LIFECYCLE_STATUS.COMPLETED;
   } else if (now >= start && now < end) {
     lifecycleStatus = LIFECYCLE_STATUS.LIVE;
@@ -44,7 +48,10 @@ const deriveCompetitionLifecycle = (competition, currentTime = new Date()) => {
     lifecycleStatus = LIFECYCLE_STATUS.REGISTRATION_OPEN;
   }
 
-  const isRegistrationOpen = lifecycleStatus === LIFECYCLE_STATUS.REGISTRATION_OPEN;
+  const isRegistrationOpen =
+    lifecycleStatus === LIFECYCLE_STATUS.REGISTRATION_OPEN &&
+    !competition.isCancelled &&
+    !competition.isArchived;
   const hasStarted = now >= start;
   const hasEnded = now >= end;
   const isLive = now >= start && now < end;
@@ -75,6 +82,8 @@ const enrichCompetition = (competition, currentTime = new Date()) => {
   const lifecycle = deriveCompetitionLifecycle(compObj, currentTime);
   return {
     ...compObj,
+    createdBy: compObj.createdBy || null,
+    isLegacy: Boolean(compObj.isLegacy || !compObj.createdBy),
     status: lifecycle.lifecycleStatus,
     ...lifecycle,
   };

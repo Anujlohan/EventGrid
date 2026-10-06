@@ -18,7 +18,7 @@ const generateToken = (user) => {
 
 const signup = async (req, res, next) => {
   try {
-    const { name, email, phoneNumber, password, confirmPassword } = req.body;
+    const { name, email, phoneNumber, password, confirmPassword, role } = req.body;
 
     // 1. Validate required fields
     if (!name || !name.trim() || name.trim().length < 2) {
@@ -37,6 +37,36 @@ const signup = async (req, res, next) => {
       return next(new AppError('Passwords do not match.', 400));
     }
 
+    // Role-based validation
+    let userRole = 'Participant';
+    if (role !== undefined && role !== null && String(role).trim() !== '') {
+      const cleanRole = String(role).trim();
+      const lower = cleanRole.toLowerCase();
+
+      // Never allow public signup to assign the Admin role
+      if (lower === 'admin') {
+        return next(
+          new AppError(
+            'The Admin role cannot be assigned through public registration. Admin accounts must be provisioned through a trusted administrative process.',
+            403
+          )
+        );
+      }
+
+      if (lower === 'organizer') {
+        userRole = 'Organizer';
+      } else if (lower === 'participant') {
+        userRole = 'Participant';
+      } else {
+        return next(
+          new AppError(
+            `Invalid role "${cleanRole}". Public registration permits "Participant" or "Organizer".`,
+            400
+          )
+        );
+      }
+    }
+
     const cleanEmail = email.toLowerCase().trim();
 
     // 2. Prevent duplicate accounts
@@ -51,7 +81,7 @@ const signup = async (req, res, next) => {
       email: cleanEmail,
       phoneNumber: phoneNumber.trim(),
       password,
-      role: 'Participant',
+      role: userRole,
     });
 
     const token = generateToken(user);

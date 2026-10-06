@@ -8,13 +8,14 @@ export const authService = {
   /**
    * Register a new user account
    */
-  signup: async ({ name, email, phoneNumber, password, confirmPassword }) => {
+  signup: async ({ name, email, phoneNumber, password, confirmPassword, role }) => {
     const data = await api.post('/auth/signup', {
       name,
       email,
       phoneNumber,
       password,
       confirmPassword,
+      ...(role ? { role } : {}),
     });
 
     if (data && data.token) {

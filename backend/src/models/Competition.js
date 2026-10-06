@@ -29,6 +29,53 @@ const competitionSchema = new mongoose.Schema(
       type: String,
       default: 'General',
       trim: true,
+      index: true,
+    },
+    subcategory: {
+      type: String,
+      default: '',
+      trim: true,
+      index: true,
+    },
+    sportType: {
+      type: String,
+      default: '',
+      trim: true,
+      index: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    isLegacy: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    legacyOwnerUnassigned: {
+      type: Boolean,
+      default: false,
+    },
+    isCancelled: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    cancellationReason: {
+      type: String,
+      default: '',
+      trim: true,
     },
     organizer: {
       type: String,
@@ -151,6 +198,8 @@ competitionSchema.pre('validate', function (next) {
 competitionSchema.index({ startDate: 1, endDate: 1 });
 competitionSchema.index({ registrationStartDate: 1, registrationDeadline: 1 });
 competitionSchema.index({ category: 1, status: 1 });
+competitionSchema.index({ category: 1, sportType: 1 });
+competitionSchema.index({ category: 1, subcategory: 1 });
 
 const Competition = mongoose.model('Competition', competitionSchema);
 

@@ -12,6 +12,15 @@ describe('High-Concurrency Multi-User Registration Stress Test with JWT Auth', (
   const subDays = (d, days) => new Date(d.getTime() - days * 24 * 60 * 60 * 1000);
 
   test('20 simultaneous authenticated users compete for 2 spots -> Exactly 2 succeed, 18 fail, registeredCount === 2', async () => {
+    // 0. Create an organizer user to own the competition
+    const organizer = await User.create({
+      name: 'Stress Organizer',
+      email: 'organizer@stress.test',
+      phoneNumber: '+91 9800000999',
+      password: 'securePassword123',
+      role: 'Organizer',
+    });
+
     // 1. Create a competition with exactly 2 spots
     const competition = await Competition.create({
       title: 'High-Concurrency Stress Test Hackathon',
@@ -23,6 +32,7 @@ describe('High-Concurrency Multi-User Registration Stress Test with JWT Auth', (
       endDate: addDays(now, 7),
       totalSpots: 2,
       registeredCount: 0,
+      createdBy: organizer._id,
     });
 
     // 2. Create 20 distinct authenticated users and their JWT tokens

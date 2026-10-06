@@ -7,18 +7,21 @@ import {
   Text,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
-import { LoginScreen } from './src/screens/LoginScreen';
-import { SignupScreen } from './src/screens/SignupScreen';
-import { DashboardScreen } from './src/screens/DashboardScreen';
-import { CompetitionDetailsScreen } from './src/screens/CompetitionDetailsScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
+import {
+  ROUTES,
+  useNativeNavigation,
+  NativeStackNavigator,
+} from './src/navigation';
 import { CreateCompetitionModal } from './src/components/modals/CreateCompetitionModal';
 import { ToastMessage } from './src/components/common/ToastMessage';
 import { competitionService } from './src/services/competitionService';
 import { authService } from './src/services/authService';
+import { api } from './src/services/api';
 import { COLORS } from './src/constants/colors';
 import { TYPOGRAPHY } from './src/constants/typography';
+import { canCreateCompetition } from './src/utils/roleUtils';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -68,10 +71,6 @@ class ErrorBoundary extends React.Component {
 }
 
 function MainApp() {
-  // Navigation State: 'LOGIN' | 'SIGNUP' | 'DASHBOARD' | 'DETAILS' | 'PROFILE'
-  const [currentScreen, setCurrentScreen] = useState('LOGIN');
-  const [selectedCompId, setSelectedCompId] = useState(null);
-
   // Authentication State
   const [authChecking, setAuthChecking] = useState(true);
   const [activeUser, setActiveUser] = useState(null);
@@ -93,6 +92,15 @@ function MainApp() {
     setToast({ visible: true, message, type });
   };
 
+  // Native Stack Navigation Engine with Route Guarding & History
+  const { navigation, currentRoute } = useNativeNavigation({
+    isAuthenticated: Boolean(activeUser),
+    authChecking,
+    onUnauthorizedAttempt: () => {
+      showToast('Please sign in to access that page.', 'info');
+    },
+  });
+
   // Bootstrap user session from local storage on launch
   const bootstrapSession = async () => {
     try {
@@ -102,25 +110,41 @@ function MainApp() {
           const freshUser = await authService.getMe();
           setActiveUser(freshUser);
           await loadAppData(freshUser);
-          setCurrentScreen('DASHBOARD');
-        } catch (e) {
+        } catch {
           // Token expired or invalid
           await authService.logout();
           setActiveUser(null);
-          setCurrentScreen('LOGIN');
+          await loadAppData(null);
         }
       } else {
-        setCurrentScreen('LOGIN');
+        setActiveUser(null);
+        await loadAppData(null);
       }
     } catch {
-      setCurrentScreen('LOGIN');
+      setActiveUser(null);
+      await loadAppData(null);
     } finally {
       setAuthChecking(false);
     }
   };
 
   useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.title = 'EventGrid - Competitions & Hackathons';
+    }
     bootstrapSession();
+
+    // Centralized Unauthorized / Session Expired listener
+    const unsubscribe = api.onUnauthorized((eventData) => {
+      setActiveUser(null);
+      setUserRegistrations([]);
+      navigation.navigate(ROUTES.DASHBOARD);
+      showToast(eventData?.message || 'Browsing in public discovery mode.', 'info');
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // Fetch real competitions and authenticated user registrations
@@ -147,8 +171,7 @@ function MainApp() {
       }
 
       if (selectCompId) {
-        setSelectedCompId(selectCompId);
-        setCurrentScreen('DETAILS');
+        navigation.navigate(ROUTES.DETAILS, { competitionId: selectCompId });
       }
     } catch (err) {
       console.warn('Failed to load application data:', err);
@@ -167,21 +190,21 @@ function MainApp() {
     setActiveUser(user);
     showToast(`Welcome back, ${user.name}!`, 'success');
     await loadAppData(user);
-    setCurrentScreen('DASHBOARD');
+    navigation.reset([{ name: ROUTES.DASHBOARD, params: {} }]);
   };
 
   const handleSignupSuccess = async (user) => {
     setActiveUser(user);
     showToast(`Account created! Welcome, ${user.name}!`, 'success');
     await loadAppData(user);
-    setCurrentScreen('DASHBOARD');
+    navigation.reset([{ name: ROUTES.DASHBOARD, params: {} }]);
   };
 
   const handleLogout = async () => {
     await authService.logout();
     setActiveUser(null);
     setUserRegistrations([]);
-    setCurrentScreen('LOGIN');
+    navigation.reset([{ name: ROUTES.LOGIN, params: {} }]);
     showToast('You have been signed out.', 'info');
   };
 
@@ -190,14 +213,9 @@ function MainApp() {
     showToast('Profile updated successfully!', 'success');
   };
 
-  const handleSelectCompetition = (compId) => {
-    setSelectedCompId(compId);
-    setCurrentScreen('DETAILS');
-  };
-
-  const handleCompetitionCreated = (newComp) => {
+  const handleCompetitionCreated = async (newComp) => {
     showToast('Competition created successfully!', 'success');
-    loadAppData(activeUser, newComp._id);
+    await loadAppData(activeUser, newComp?._id);
   };
 
   const handleCancelRegistrationFromDashboard = async (competitionId) => {
@@ -210,7 +228,7 @@ function MainApp() {
     }
   };
 
-  // Initial App Session Loading State
+  // Initial App Session Loading State during Auth Check
   if (authChecking) {
     return (
       <SafeAreaView style={styles.centerContainer}>
@@ -220,7 +238,6 @@ function MainApp() {
     );
   }
 
-  // Render Root Screen based on navigation and authentication state
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
@@ -232,67 +249,37 @@ function MainApp() {
         onDismiss={() => setToast({ visible: false, message: '', type: 'info' })}
       />
 
-      {/* Unauthenticated Flows */}
-      {!activeUser ? (
-        currentScreen === 'SIGNUP' ? (
-          <SignupScreen
-            onSignupSuccess={handleSignupSuccess}
-            onNavigateToLogin={() => setCurrentScreen('LOGIN')}
-          />
-        ) : (
-          <LoginScreen
-            onLoginSuccess={handleLoginSuccess}
-            onNavigateToSignup={() => setCurrentScreen('SIGNUP')}
-          />
-        )
-      ) : (
-        /* Authenticated Flows */
-        <>
-          {currentScreen === 'PROFILE' && (
-            <ProfileScreen
-              user={activeUser}
-              onProfileUpdated={handleProfileUpdated}
-              onLogout={handleLogout}
-              onBack={() => setCurrentScreen('DASHBOARD')}
-            />
-          )}
+      <NativeStackNavigator
+        navigation={navigation}
+        currentRoute={currentRoute}
+        activeUser={activeUser}
+        competitions={competitions}
+        userRegistrations={userRegistrations}
+        loadingData={loadingData}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onLoginSuccess={handleLoginSuccess}
+        onSignupSuccess={handleSignupSuccess}
+        onLogout={handleLogout}
+        onProfileUpdated={handleProfileUpdated}
+        onCancelRegistration={handleCancelRegistrationFromDashboard}
+        onCreateCompetitionPress={() => {
+          if (canCreateCompetition(activeUser)) {
+            setCreateModalVisible(true);
+          } else {
+            showToast('Only accounts with the Organizer or Admin role can create competitions.', 'error');
+          }
+        }}
+        onRegistrationUpdated={() => loadAppData(activeUser)}
+      />
 
-          {currentScreen === 'DETAILS' && (
-            <CompetitionDetailsScreen
-              competitionId={selectedCompId}
-              activeUser={activeUser}
-              onBack={() => {
-                setCurrentScreen('DASHBOARD');
-                loadAppData(activeUser);
-              }}
-              onRegistrationUpdated={() => loadAppData(activeUser)}
-            />
-          )}
-
-          {currentScreen === 'DASHBOARD' && (
-            <DashboardScreen
-              competitions={competitions}
-              userRegistrations={userRegistrations}
-              activeUser={activeUser}
-              loading={loadingData}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              onSelectCompetition={handleSelectCompetition}
-              onCreateCompetitionPress={() => setCreateModalVisible(true)}
-              onOpenProfile={() => setCurrentScreen('PROFILE')}
-              onLogout={handleLogout}
-              onCancelRegistration={handleCancelRegistrationFromDashboard}
-            />
-          )}
-
-          {/* Organizer Modal to create genuine competitions */}
-          <CreateCompetitionModal
-            visible={createModalVisible}
-            onClose={() => setCreateModalVisible(false)}
-            onSuccess={handleCompetitionCreated}
-          />
-        </>
-      )}
+      {/* Organizer Modal to create genuine competitions */}
+      <CreateCompetitionModal
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSuccess={handleCompetitionCreated}
+        activeUser={activeUser}
+      />
     </SafeAreaView>
   );
 }
@@ -337,42 +324,40 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorBoundaryCard: {
-    backgroundColor: COLORS.surface,
-    padding: 32,
+    backgroundColor: '#1E293B',
     borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
     alignItems: 'center',
-    maxWidth: 460,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   errorBoundaryIcon: {
     fontSize: 48,
     marginBottom: 16,
   },
   errorBoundaryTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 10,
+    fontSize: TYPOGRAPHY.size.xl,
+    fontWeight: TYPOGRAPHY.weight.bold,
+    color: '#F8FAFC',
+    marginBottom: 8,
     textAlign: 'center',
   },
   errorBoundaryMessage: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.size.sm,
+    color: '#94A3B8',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   errorBoundaryButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 24,
     paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 10,
   },
   errorBoundaryButtonText: {
     color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 15,
+    fontWeight: TYPOGRAPHY.weight.semibold,
+    fontSize: TYPOGRAPHY.size.sm,
   },
 });

@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: TYPOGRAPHY.size.sm,
-    color: COLORS.textPrimary,
+    color: '#0F172A',
     marginBottom: 12,
   },
   primaryButton: {

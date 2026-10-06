@@ -107,8 +107,70 @@ const validateCreateCompetition = (req, res, next) => {
   next();
 };
 
+/**
+ * Middleware to validate updating a competition
+ */
+const validateUpdateCompetition = (req, res, next) => {
+  if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
+    return next(new AppError('Update payload cannot be empty.', 400));
+  }
+
+  const {
+    title,
+    description,
+    organizer,
+    totalSpots,
+    registrationStartDate,
+    registrationDeadline,
+    startDate,
+    endDate,
+  } = req.body;
+
+  if (title !== undefined && (typeof title !== 'string' || title.trim().length < 3)) {
+    return next(new AppError('Competition title must be at least 3 characters long.', 400));
+  }
+
+  if (description !== undefined && (typeof description !== 'string' || description.trim().length < 5)) {
+    return next(new AppError('Competition description must be at least 5 characters long.', 400));
+  }
+
+  if (organizer !== undefined && (typeof organizer !== 'string' || organizer.trim().length < 2)) {
+    return next(new AppError('Organizer name must be at least 2 characters long.', 400));
+  }
+
+  if (totalSpots !== undefined) {
+    const spots = parseInt(totalSpots, 10);
+    if (isNaN(spots) || spots <= 0) {
+      return next(new AppError('totalSpots must be a positive integer greater than 0.', 400));
+    }
+  }
+
+  const checkValidDate = (dateVal, fieldName) => {
+    if (dateVal !== undefined) {
+      if (isNaN(new Date(dateVal).getTime())) {
+        return `${fieldName} must be a valid date timestamp.`;
+      }
+    }
+    return null;
+  };
+
+  const dateErrors = [
+    checkValidDate(registrationStartDate, 'registrationStartDate'),
+    checkValidDate(registrationDeadline, 'registrationDeadline'),
+    checkValidDate(startDate, 'startDate'),
+    checkValidDate(endDate, 'endDate'),
+  ].filter(Boolean);
+
+  if (dateErrors.length > 0) {
+    return next(new AppError(dateErrors[0], 400));
+  }
+
+  next();
+};
+
 module.exports = {
   validateObjectId,
   validateRegisterPayload,
   validateCreateCompetition,
+  validateUpdateCompetition,
 };

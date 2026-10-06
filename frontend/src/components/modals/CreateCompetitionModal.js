@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -14,72 +14,35 @@ import {
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../constants/typography';
 import { competitionService } from '../../services/competitionService';
+import { DateTimePickerInput, validateCompetitionTimeline } from '../common/DateTimePickerInput';
+import { ImagePickerInput } from '../common/ImagePickerInput';
+import { canCreateCompetition } from '../../utils/roleUtils';
+import { EVENT_CATEGORIES, SPORTS_GAMES_EXAMPLES } from '../../constants/eventCategories';
 
-export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
+export const CreateCompetitionModal = ({ visible, onClose, onSuccess, activeUser }) => {
   const now = new Date();
   const addHours = (d, h) => new Date(d.getTime() + h * 3600 * 1000);
   const addDays = (d, days) => new Date(d.getTime() + days * 24 * 3600 * 1000);
-  const pad2 = (n) => String(n).padStart(2, '0');
-
-  const formatDatePart = (d) => {
-    const date = d instanceof Date ? d : new Date(d);
-    if (isNaN(date.getTime())) return '';
-    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-  };
-
-  const formatTimePart = (d) => {
-    const date = d instanceof Date ? d : new Date(d);
-    if (isNaN(date.getTime())) return '09:00';
-    return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-  };
-
-  const combineDateTime = (dateStr, timeStr) => {
-    if (!dateStr || !dateStr.trim()) return null;
-    const cleanDate = dateStr.trim();
-    let cleanTime = timeStr && timeStr.trim() ? timeStr.trim() : '00:00';
-    if (cleanTime.length === 5) cleanTime = `${cleanTime}:00`;
-    const dt = new Date(`${cleanDate}T${cleanTime}`);
-    if (isNaN(dt.getTime())) {
-      const fallback = new Date(cleanDate);
-      return isNaN(fallback.getTime()) ? null : fallback;
-    }
-    return dt;
-  };
-
-  const formatPreview = (dateStr, timeStr) => {
-    const dt = combineDateTime(dateStr, timeStr);
-    if (!dt || isNaN(dt.getTime())) return 'Not set';
-    return dt.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   // Form State
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Technology');
+  const [category, setCategory] = useState('Hackathons');
+  const [customCategory, setCustomCategory] = useState('');
+  const [sportType, setSportType] = useState('Cricket');
+  const [customSport, setCustomSport] = useState('');
+  const [subcategory, setSubcategory] = useState('');
   const [organizer, setOrganizer] = useState('');
   const [image, setImage] = useState('');
   const [mode, setMode] = useState('Online');
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('');
   
-  // Dates & Times
-  const [regStartDate, setRegStartDate] = useState(formatDatePart(now));
-  const [regStartTime, setRegStartTime] = useState(formatTimePart(now));
-
-  const [regDeadlineDate, setRegDeadlineDate] = useState(formatDatePart(addDays(now, 5)));
-  const [regDeadlineTime, setRegDeadlineTime] = useState(formatTimePart(addDays(now, 5)));
-
-  const [startDateDate, setStartDateDate] = useState(formatDatePart(addDays(now, 7)));
-  const [startDateTime, setStartDateTime] = useState(formatTimePart(addDays(now, 7)));
-
-  const [endDateDate, setEndDateDate] = useState(formatDatePart(addDays(now, 10)));
-  const [endDateTime, setEndDateTime] = useState(formatTimePart(addDays(now, 10)));
+  // Dates & Times (Native Date Objects)
+  const [regStart, setRegStart] = useState(() => now);
+  const [regDeadline, setRegDeadline] = useState(() => addDays(now, 5));
+  const [startDate, setStartDate] = useState(() => addDays(now, 7));
+  const [endDate, setEndDate] = useState(() => addDays(now, 10));
 
   const [totalSpots, setTotalSpots] = useState('50');
   const [entryFee, setEntryFee] = useState('Free');
@@ -94,6 +57,19 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const scrollViewRef = useRef(null);
+  const isSubmittingRef = useRef(false);
+
+  // Auto-fill organizer name from active user if available and reset errors when modal opens
+  useEffect(() => {
+    if (visible) {
+      setErrorMsg('');
+      if (!organizer && (activeUser?.organization || activeUser?.name)) {
+        setOrganizer(activeUser.organization || activeUser.name);
+      }
+    }
+  }, [visible, activeUser]);
 
   // Preset Date Fillers for convenience
   const applyPresetDates = (preset) => {
@@ -117,71 +93,56 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
     }
 
     if (rStart) {
-      setRegStartDate(formatDatePart(rStart));
-      setRegStartTime(formatTimePart(rStart));
-      setRegDeadlineDate(formatDatePart(rDeadline));
-      setRegDeadlineTime(formatTimePart(rDeadline));
-      setStartDateDate(formatDatePart(cStart));
-      setStartDateTime(formatTimePart(cStart));
-      setEndDateDate(formatDatePart(cEnd));
-      setEndDateTime(formatTimePart(cEnd));
+      setRegStart(rStart);
+      setRegDeadline(rDeadline);
+      setStartDate(cStart);
+      setEndDate(cEnd);
     }
   };
 
   const handleSubmit = async () => {
+    // Prevent duplicate clicks or concurrent submissions synchronously
+    if (isSubmittingRef.current || isSubmitting) {
+      return;
+    }
+
     setErrorMsg('');
+
+    // Pre-check organizer role permission
+    if (!canCreateCompetition(activeUser)) {
+      const msg = 'Only accounts with the Organizer or Admin role can create genuine competitions. Please log in with an Organizer account.';
+      setErrorMsg(msg);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     if (!title.trim() || title.trim().length < 3) {
       setErrorMsg('Please enter a valid competition title (minimum 3 characters).');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     if (!description.trim() || description.trim().length < 5) {
       setErrorMsg('Please enter a description (minimum 5 characters).');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
-    if (!organizer.trim()) {
-      setErrorMsg('Organizer name is required.');
+    if (!organizer.trim() || organizer.trim().length < 2) {
+      setErrorMsg('Organizer name is required (minimum 2 characters).');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
     const spots = parseInt(totalSpots, 10);
     if (isNaN(spots) || spots <= 0) {
       setErrorMsg('Total available spots must be a positive number greater than 0.');
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
-    const dRegStart = combineDateTime(regStartDate, regStartTime);
-    const dRegDeadline = combineDateTime(regDeadlineDate, regDeadlineTime);
-    const dStart = combineDateTime(startDateDate, startDateTime);
-    const dEnd = combineDateTime(endDateDate, endDateTime);
-
-    if (!dRegStart || isNaN(dRegStart.getTime())) {
-      setErrorMsg('Please enter a valid Registration Start Date and Time.');
-      return;
-    }
-    if (!dRegDeadline || isNaN(dRegDeadline.getTime())) {
-      setErrorMsg('Please enter a valid Registration Deadline Date and Time.');
-      return;
-    }
-    if (!dStart || isNaN(dStart.getTime())) {
-      setErrorMsg('Please enter a valid Competition Start Date and Time.');
-      return;
-    }
-    if (!dEnd || isNaN(dEnd.getTime())) {
-      setErrorMsg('Please enter a valid Competition End Date and Time.');
-      return;
-    }
-
-    if (dRegStart > dRegDeadline) {
-      setErrorMsg('Registration start date/time must be before or equal to the registration deadline.');
-      return;
-    }
-    if (dRegDeadline >= dStart) {
-      setErrorMsg('Registration deadline must be strictly before competition start date/time.');
-      return;
-    }
-    if (dStart > dEnd) {
-      setErrorMsg('Competition start date/time must be before or equal to competition end date/time.');
+    const timelineCheck = validateCompetitionTimeline(regStart, regDeadline, startDate, endDate);
+    if (!timelineCheck.isValid) {
+      setErrorMsg(timelineCheck.error);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
@@ -191,21 +152,43 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
       .map((r) => r.trim())
       .filter((r) => r.length > 0);
 
+    let finalCategory = category;
+    if (category === 'Other') {
+      finalCategory = customCategory.trim() || 'Other';
+    } else {
+      finalCategory = category.trim() || 'General';
+    }
+
+    let finalSport = undefined;
+    if (category === 'Sports & Games') {
+      if (sportType === 'Other') {
+        finalSport = customSport.trim() || undefined;
+      } else {
+        finalSport = sportType.trim() || undefined;
+      }
+    }
+
     const payload = {
       title: title.trim(),
       description: description.trim(),
-      category: category.trim() || 'General',
+      category: finalCategory,
+      ...(finalSport
+        ? { sportType: finalSport, subcategory: finalSport }
+        : subcategory.trim()
+        ? { subcategory: subcategory.trim() }
+        : {}),
       organizer: organizer.trim(),
       image: image.trim(),
       location: {
+        type: mode,
         mode,
         venue: venue.trim(),
         city: city.trim(),
       },
-      registrationStartDate: dRegStart.toISOString(),
-      registrationDeadline: dRegDeadline.toISOString(),
-      startDate: dStart.toISOString(),
-      endDate: dEnd.toISOString(),
+      registrationStartDate: regStart.toISOString(),
+      registrationDeadline: regDeadline.toISOString(),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
       totalSpots: spots,
       entryFee: entryFee.trim() || 'Free',
       prizePool: prizePool.trim(),
@@ -224,14 +207,26 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
       ],
     };
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       const created = await competitionService.createCompetition(payload);
-      onSuccess(created);
+      if (onSuccess) {
+        onSuccess(created);
+      }
       onClose();
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to create competition. Please check all fields.');
+      const detailedMessage =
+        err.details && Array.isArray(err.details)
+          ? `${err.message}: ${err.details.join(', ')}`
+          : err.message || 'Failed to create competition. Please check all fields.';
+      setErrorMsg(detailedMessage);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.error('[CreateCompetitionModal] Creation failed:', err.message);
+      }
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -248,12 +243,17 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
           <View style={{ width: 60 }} />
         </View>
 
-        <ScrollView style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.formScroll}
+          contentContainerStyle={styles.formContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.sectionHeader}>Basic Information</Text>
 
           {errorMsg ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMsg}</Text>
+            <View style={styles.errorBox} testID="create-comp-error-top">
+              <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
             </View>
           ) : null}
 
@@ -266,14 +266,107 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
             onChangeText={setTitle}
           />
 
-          <Text style={styles.label}>Category</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Coding, Robotics, Hackathon, Design"
-            placeholderTextColor="#94A3B8"
-            value={category}
-            onChangeText={setCategory}
-          />
+          <Text style={styles.label}>Event Category *</Text>
+          <View style={styles.categorySelectContainer}>
+            <View style={styles.categoryGrid}>
+              {EVENT_CATEGORIES.map((cat) => {
+                const isCatActive = category === cat.name;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    testID={`create-category-${cat.id}`}
+                    style={[
+                      styles.categorySelectChip,
+                      isCatActive && styles.categorySelectChipActive,
+                    ]}
+                    onPress={() => setCategory(cat.name)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.categorySelectIcon}>{cat.icon}</Text>
+                    <Text
+                      style={[
+                        styles.categorySelectLabel,
+                        isCatActive && styles.categorySelectLabelActive,
+                      ]}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {category === 'Other' ? (
+            <View style={styles.subFieldBlock}>
+              <Text style={styles.subLabel}>Specify Custom Category</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Gaming, Debate, Literature..."
+                placeholderTextColor="#94A3B8"
+                value={customCategory}
+                onChangeText={setCustomCategory}
+              />
+            </View>
+          ) : null}
+
+          {category === 'Sports & Games' ? (
+            <View style={styles.sportsSubSelectCard}>
+              <Text style={styles.sportsCardTitle}>🏆 Sport / Game Type</Text>
+              <Text style={styles.helperText}>
+                Select the sport or esport for this tournament:
+              </Text>
+              <View style={styles.sportsPillGrid}>
+                {[...SPORTS_GAMES_EXAMPLES, 'Other'].map((sport) => {
+                  const isSportActive = sportType === sport;
+                  const sportIcons = {
+                    Cricket: '🏏',
+                    Football: '⚽',
+                    Basketball: '🏀',
+                    Badminton: '🏸',
+                    Chess: '♟️',
+                    Esports: '🎮',
+                    Other: '🏅',
+                  };
+                  const icon = sportIcons[sport] || '🏅';
+                  return (
+                    <TouchableOpacity
+                      key={sport}
+                      testID={`create-sport-${sport.toLowerCase()}`}
+                      style={[
+                        styles.sportSelectPill,
+                        isSportActive && styles.sportSelectPillActive,
+                      ]}
+                      onPress={() => setSportType(sport)}
+                      activeOpacity={0.75}
+                    >
+                      <Text
+                        style={[
+                          styles.sportSelectPillText,
+                          isSportActive && styles.sportSelectPillTextActive,
+                        ]}
+                      >
+                        {icon} {sport}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {sportType === 'Other' ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.subLabel}>Custom Sport / Game Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Table Tennis, Athletics, VolleyBall..."
+                    placeholderTextColor="#94A3B8"
+                    value={customSport}
+                    onChangeText={setCustomSport}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <Text style={styles.label}>Organizer *</Text>
           <TextInput
@@ -284,14 +377,10 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
             onChangeText={setOrganizer}
           />
 
-          <Text style={styles.label}>Banner Image URL (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="https://... (Leave empty to omit image)"
-            placeholderTextColor="#94A3B8"
+          <ImagePickerInput
             value={image}
-            onChangeText={setImage}
-            autoCapitalize="none"
+            onChange={setImage}
+            onError={setErrorMsg}
           />
 
           <Text style={styles.label}>Description *</Text>
@@ -353,133 +442,33 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
             </TouchableOpacity>
           </View>
 
-          {/* 1. Registration Start */}
-          <View style={styles.milestoneCard}>
-            <View style={styles.milestoneHeader}>
-              <Text style={styles.milestoneTitle}>Registration Start</Text>
-              <Text style={styles.milestonePreview}>{formatPreview(regStartDate, regStartTime)}</Text>
-            </View>
-            <View style={styles.dateTimeRow}>
-              <View style={styles.dateCol}>
-                <Text style={styles.subLabel}>Date</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={regStartDate}
-                  onChangeText={setRegStartDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'date' } : {})}
-                />
-              </View>
-              <View style={styles.timeCol}>
-                <Text style={styles.subLabel}>Time</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={regStartTime}
-                  onChangeText={setRegStartTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'time' } : {})}
-                />
-              </View>
-            </View>
-          </View>
+          <DateTimePickerInput
+            label="Registration Start"
+            value={regStart}
+            onChange={setRegStart}
+            required
+          />
 
-          {/* 2. Registration Deadline */}
-          <View style={styles.milestoneCard}>
-            <View style={styles.milestoneHeader}>
-              <Text style={styles.milestoneTitle}>Registration Deadline *</Text>
-              <Text style={styles.milestonePreview}>{formatPreview(regDeadlineDate, regDeadlineTime)}</Text>
-            </View>
-            <View style={styles.dateTimeRow}>
-              <View style={styles.dateCol}>
-                <Text style={styles.subLabel}>Date</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={regDeadlineDate}
-                  onChangeText={setRegDeadlineDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'date' } : {})}
-                />
-              </View>
-              <View style={styles.timeCol}>
-                <Text style={styles.subLabel}>Time</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={regDeadlineTime}
-                  onChangeText={setRegDeadlineTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'time' } : {})}
-                />
-              </View>
-            </View>
-          </View>
+          <DateTimePickerInput
+            label="Registration Deadline"
+            value={regDeadline}
+            onChange={setRegDeadline}
+            required
+          />
 
-          {/* 3. Competition Start */}
-          <View style={styles.milestoneCard}>
-            <View style={styles.milestoneHeader}>
-              <Text style={styles.milestoneTitle}>Competition Start Date & Time *</Text>
-              <Text style={styles.milestonePreview}>{formatPreview(startDateDate, startDateTime)}</Text>
-            </View>
-            <View style={styles.dateTimeRow}>
-              <View style={styles.dateCol}>
-                <Text style={styles.subLabel}>Date</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={startDateDate}
-                  onChangeText={setStartDateDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'date' } : {})}
-                />
-              </View>
-              <View style={styles.timeCol}>
-                <Text style={styles.subLabel}>Time</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={startDateTime}
-                  onChangeText={setStartDateTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'time' } : {})}
-                />
-              </View>
-            </View>
-          </View>
+          <DateTimePickerInput
+            label="Competition Start Date & Time"
+            value={startDate}
+            onChange={setStartDate}
+            required
+          />
 
-          {/* 4. Competition End */}
-          <View style={styles.milestoneCard}>
-            <View style={styles.milestoneHeader}>
-              <Text style={styles.milestoneTitle}>Competition End Date & Time *</Text>
-              <Text style={styles.milestonePreview}>{formatPreview(endDateDate, endDateTime)}</Text>
-            </View>
-            <View style={styles.dateTimeRow}>
-              <View style={styles.dateCol}>
-                <Text style={styles.subLabel}>Date</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={endDateDate}
-                  onChangeText={setEndDateDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'date' } : {})}
-                />
-              </View>
-              <View style={styles.timeCol}>
-                <Text style={styles.subLabel}>Time</Text>
-                <TextInput
-                  style={styles.dateTimeInput}
-                  value={endDateTime}
-                  onChangeText={setEndDateTime}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#94A3B8"
-                  {...(Platform.OS === 'web' ? { type: 'time' } : {})}
-                />
-              </View>
-            </View>
-          </View>
+          <DateTimePickerInput
+            label="Competition End Date & Time"
+            value={endDate}
+            onChange={setEndDate}
+            required
+          />
 
           <Text style={styles.sectionHeader}>Capacity & Fees</Text>
 
@@ -570,14 +559,24 @@ export const CreateCompetitionModal = ({ visible, onClose, onSuccess }) => {
             </TouchableOpacity>
           </View>
 
+          {errorMsg ? (
+            <View style={styles.errorBox} testID="create-comp-error-bottom">
+              <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
+            </View>
+          ) : null}
+
           <TouchableOpacity
+            testID="save-details-button"
             style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
             disabled={isSubmitting}
             activeOpacity={0.8}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Text style={styles.submitButtonText}>  Creating Competition...</Text>
+              </View>
             ) : (
               <Text style={styles.submitButtonText}>Save Details</Text>
             )}
@@ -640,14 +639,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#0B1120',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+    borderColor: '#334155',
+    borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     fontSize: TYPOGRAPHY.size.sm,
-    color: COLORS.textPrimary,
+    color: '#F8FAFC',
     marginBottom: 14,
   },
   textArea: {
@@ -660,16 +659,16 @@ const styles = StyleSheet.create({
   },
   modeBtn: {
     flex: 1,
-    paddingVertical: 10,
-    backgroundColor: COLORS.surface,
+    paddingVertical: 11,
+    backgroundColor: '#0B1120',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+    borderColor: '#334155',
+    borderRadius: 10,
     alignItems: 'center',
     marginRight: 8,
   },
   modeBtnActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     borderColor: COLORS.primary,
   },
   modeBtnText: {
@@ -678,43 +677,44 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   modeBtnTextActive: {
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontWeight: TYPOGRAPHY.weight.bold,
   },
   helperText: {
     fontSize: TYPOGRAPHY.size.xs,
     color: COLORS.textMuted,
-    marginBottom: 8,
+    marginBottom: 10,
+    lineHeight: 18,
   },
   presetRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 14,
+    marginBottom: 16,
     gap: 8,
   },
   presetChip: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#334155',
   },
   presetChipText: {
-    fontSize: 11,
-    color: COLORS.textPrimary,
+    fontSize: 12,
+    color: '#F8FAFC',
     fontWeight: '600',
   },
   errorBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: COLORS.dangerBg,
     borderWidth: 1,
-    borderColor: '#F87171',
-    borderRadius: 8,
+    borderColor: COLORS.dangerBorder,
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   errorText: {
-    color: '#B91C1C',
+    color: COLORS.danger,
     fontSize: TYPOGRAPHY.size.xs,
     fontWeight: TYPOGRAPHY.weight.medium,
   },
@@ -724,16 +724,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   reqChip: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0B1120',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    borderColor: '#334155',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   reqChipActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderColor: COLORS.primary,
   },
   reqChipText: {
     fontSize: 12,
@@ -741,15 +741,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   reqChipTextActive: {
-    color: '#1D4ED8',
+    color: '#C4B5FD',
     fontWeight: 'bold',
   },
   submitButton: {
     backgroundColor: COLORS.primary,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 24,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
   submitButtonDisabled: {
     opacity: 0.7,
@@ -758,6 +763,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: TYPOGRAPHY.size.base,
     fontWeight: TYPOGRAPHY.weight.bold,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   milestoneCard: {
     backgroundColor: '#F8FAFC',
@@ -809,6 +819,85 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     fontSize: TYPOGRAPHY.size.sm,
     color: COLORS.textPrimary,
+  },
+  categorySelectContainer: {
+    marginBottom: 14,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categorySelectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  categorySelectChipActive: {
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: '#8B5CF6',
+  },
+  categorySelectIcon: {
+    fontSize: 14,
+  },
+  categorySelectLabel: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  categorySelectLabelActive: {
+    color: '#F8FAFC',
+    fontWeight: '700',
+  },
+  subFieldBlock: {
+    marginBottom: 14,
+  },
+  sportsSubSelectCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    marginBottom: 14,
+  },
+  sportsCardTitle: {
+    fontSize: TYPOGRAPHY.size.sm,
+    fontWeight: '700',
+    color: '#F59E0B',
+    marginBottom: 4,
+  },
+  sportsPillGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  sportSelectPill: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  sportSelectPillActive: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderColor: '#F59E0B',
+  },
+  sportSelectPillText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  sportSelectPillTextActive: {
+    color: '#FDE68A',
+    fontWeight: '700',
   },
 });
 

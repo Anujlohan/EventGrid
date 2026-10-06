@@ -17,8 +17,8 @@ export const ActionButton = ({
   const getVariantStyles = () => {
     if (isButtonDisabled && variant !== 'danger') {
       return {
-        bg: '#E2E8F0',
-        text: '#94A3B8',
+        bg: 'rgba(255, 255, 255, 0.08)',
+        text: '#64748B',
         border: 'transparent',
       };
     }
@@ -26,27 +26,27 @@ export const ActionButton = ({
     switch (variant) {
       case 'secondary':
         return {
-          bg: COLORS.surface,
-          text: COLORS.primary,
-          border: COLORS.primary,
+          bg: 'rgba(255, 255, 255, 0.06)',
+          text: COLORS.textPrimary,
+          border: COLORS.borderLight,
         };
       case 'danger':
         return {
-          bg: '#FEF2F2',
-          text: COLORS.danger,
-          border: '#FECACA',
+          bg: 'rgba(244, 63, 94, 0.15)',
+          text: '#FDA4AF',
+          border: 'rgba(244, 63, 94, 0.4)',
         };
       case 'success':
         return {
           bg: COLORS.success,
-          text: COLORS.textInverse,
+          text: '#090D16',
           border: 'transparent',
         };
       case 'primary':
       default:
         return {
           bg: COLORS.primary,
-          text: COLORS.textInverse,
+          text: '#FFFFFF',
           border: 'transparent',
         };
     }
